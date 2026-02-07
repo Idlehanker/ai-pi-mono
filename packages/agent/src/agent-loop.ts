@@ -224,6 +224,7 @@ async function streamAssistantResponse(
 		tools: context.tools,
 	};
 
+	// function support `||` operator in ts!!! If invoker provide `streamFn`, use it, otherwise fallback to `streamSimple`
 	const streamFunction = streamFn || streamSimple;
 
 	// Resolve API key (important for expiring tokens)
@@ -239,6 +240,7 @@ async function streamAssistantResponse(
 	let partialMessage: AssistantMessage | null = null;
 	let addedPartial = false;
 
+	// response is an AsyncIterableIterator<LLMEvent>, so `await` is needed here
 	for await (const event of response) {
 		switch (event.type) {
 			case "start":

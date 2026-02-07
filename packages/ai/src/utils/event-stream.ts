@@ -46,6 +46,9 @@ export class EventStream<T, R = T> implements AsyncIterable<T> {
 		}
 	}
 
+	// The normal async iterator is: `async function* () {`
+	// But we can't use it here because it's a class method.
+	// So we use `async *[Symbol.asyncIterator]()` instead.
 	async *[Symbol.asyncIterator](): AsyncIterator<T> {
 		while (true) {
 			if (this.queue.length > 0) {
