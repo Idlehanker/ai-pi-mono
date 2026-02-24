@@ -1,0 +1,150 @@
+@startuml ai_classes
+skinparam BoxPadding 10
+skinparam monochrome true
+
+package "@mariozechner/pi-ai" {
+  interface Context {
+    systemPrompt?: string
+    messages: Message[]
+    tools?: Tool[]
+  }
+
+  interface Tool<TParameters> {
+    name: string
+    description: string
+    parameters: TParameters
+  }
+
+  abstract class Message <<Union>>
+  Context o-- "0..*" Message : messages
+  Context o-- "0..*" Tool : tools
+
+  interface UserMessage {
+    role: "user"
+    content: string | (TextContent | ImageContent)[]
+    timestamp: number
+  }
+
+  interface AssistantMessage {
+    role: "assistant"
+    content: (TextContent | ThinkingContent | ToolCall)[]
+    api: Api
+    provider: Provider
+    model: string
+    usage: Usage
+    stopReason: StopReason
+    errorMessage?: string
+    timestamp: number
+  }
+
+  interface ToolResultMessage<TDetails> {
+    role: "toolResult"
+    toolCallId: string
+    toolName: string
+    content: (TextContent | ImageContent)[]
+    details?: TDetails
+    isError: boolean
+    timestamp: number
+  }
+
+  Message <|-- UserMessage
+  Message <|-- AssistantMessage
+  Message <|-- ToolResultMessage
+
+  interface TextContent {
+    type: "text"
+    text: string
+    textSignature?: string
+  }
+
+  interface ThinkingContent {
+    type: "thinking"
+    thinking: string
+    thinkingSignature?: string
+  }
+
+  interface ImageContent {
+    type: "image"
+    data: string
+    mimeType: string
+  }
+
+  interface ToolCall {
+    type: "toolCall"
+    id: string
+    name: string
+    arguments: Record<string, any>
+    thoughtSignature?: string
+  }
+
+  AssistantMessage *-- "0..*" TextContent
+  AssistantMessage *-- "0..*" ThinkingContent
+  AssistantMessage *-- "0..*" ToolCall
+
+  UserMessage *-- "0..*" TextContent
+  UserMessage *-- "0..*" ImageContent
+
+  ToolResultMessage *-- "0..*" TextContent
+  ToolResultMessage *-- "0..*" ImageContent
+
+  interface Model<TApi> {
+    id: string
+    name: string
+    api: TApi
+    provider: Provider
+    baseUrl: string
+    reasoning: boolean
+    input: ("text" | "image")[]
+    cost: object
+    contextWindow: number
+    maxTokens: number
+    headers?: Record<string, string>
+    compat?: object
+  }
+
+  interface Usage {
+    input: number
+    output: number
+    cacheRead: number
+    cacheWrite: number
+    totalTokens: number
+    cost: object
+  }
+  AssistantMessage o-- Usage
+
+  interface StreamOptions {
+    temperature?: number
+    maxTokens?: number
+    signal?: AbortSignal
+    apiKey?: string
+    cacheRetention?: string
+    sessionId?: string
+    maxRetryDelayMs?: number
+  }
+
+  interface SimpleStreamOptions {
+    reasoning?: "minimal" | "low" | "medium" | "high" | "xhigh"
+    thinkingBudgets?: object
+  }
+  
+  StreamOptions <|-- SimpleStreamOptions
+
+  interface ApiProvider<TApi, TOptions> {
+    api: TApi
+    stream: StreamFunction<TApi, TOptions>
+    streamSimple: StreamFunction<TApi, SimpleStreamOptions>
+  }
+  
+  ApiProvider ..> Model : "uses"
+  ApiProvider ..> Context : "uses"
+  ApiProvider ..> StreamOptions : "uses"
+  
+  interface AssistantMessageEvent <<Union>> {
+    type: "start" | "text_start" | "text_delta" | "done" | "error" | "..."
+    partial: AssistantMessage
+  }
+  
+  ApiProvider ..> AssistantMessageEvent : "emits"
+}
+
+@enduml

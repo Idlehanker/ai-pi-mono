@@ -1,0 +1,82 @@
+@startuml TUI_State_Diagram
+skinparam stateBackgroundColor<<Renderer>> LightCyan
+skinparam DefaultFontName Arial
+skinparam DefaultFontSize 18
+skinparam dpi 200
+
+title TUI Framework State Diagram
+
+/' TUI Core Lifecycle '/
+state "TUI Core Engine Lifecycle" as TUILifecycle {
+    [*] --> Uninitialized : new TUI(terminal)
+    
+    state Uninitialized : Terminal attached,\nno output yet
+    
+    state "Running (Raw Mode)" as Running {
+        state "Event Processing" as Events {
+            state "Input Received" as OnInput : stdin stream /\nkeystrokes
+            state "Terminal Resized" as OnResize : SIGWINCH /\ndimensions changed
+        }
+        
+        state "Idle" as Idle
+        
+        state "Rendering Phase" as Rendering <<Renderer>> {
+            state "First Render" as FirstRender : Full screen\noutput
+            state "Full Redraw" as FullRedraw : Clear screen &\nredraw all lines
+            state "Differential Update" as DiffUpdate : Update only\nchanged lines
+        }
+    }
+    
+    state Stopped : Resources released,\nTerminal state restored
+    
+    Uninitialized --> Running : tui.start()
+    
+    Idle --> OnInput : user input\n/ paste
+    OnInput --> Rendering : state changed\n/ invalidate()
+    OnInput --> Idle : no visual\nchange
+    
+    Idle --> OnResize : resize\nevent
+    OnResize --> FullRedraw : requestRender()
+    
+    Idle --> Rendering : tui.requestRender()
+    
+    Rendering --> FirstRender : no previous\noutput
+    Rendering --> FullRedraw : width changed\n/ clear request
+    Rendering --> DiffUpdate : targeted\nupdate
+    
+    FirstRender --> Idle
+    FullRedraw --> Idle
+    DiffUpdate --> Idle
+    
+    Running --> Stopped : tui.stop()
+    Stopped --> Running : tui.start()
+    Stopped --> [*]
+}
+
+/' Editor Component Modes State Machine '/
+state "Editor Component Modes" as EditorModes {
+    [*] --> NormalMode
+    
+    state "Normal Editing" as NormalMode : Typing, Navigation,\nDeletion, Line Selection
+    state "Autocomplete Mode" as AutocompleteMode : Suggestions Overlay\n(Slash command / File)
+    state "Character Jump" as JumpMode : Awaiting target\nchar key
+    state "Bracketed Paste" as PasteMode : Buffering paste\ninput chunk
+    state "History Navigation" as HistoryMode : Browsing previous\ninput lines
+
+    NormalMode --> AutocompleteMode : Tab (File)\n/ '/' (Command)
+    AutocompleteMode --> NormalMode : ESC (Cancel)\n/ Enter (Select)
+    
+    NormalMode --> JumpMode : Ctrl+]\n/ Ctrl+Alt+]
+    JumpMode --> NormalMode : <Char>\n/ ESC
+    
+    NormalMode --> PasteMode : ESC [ 2 0 0 ~\n(Paste Start)
+    PasteMode --> NormalMode : ESC [ 2 0 1 ~\n(Paste End)
+    
+    NormalMode --> HistoryMode : Up/Down\n(vertical edge)
+    HistoryMode --> NormalMode : Edit text\n/ Enter
+    HistoryMode --> HistoryMode : Up/Down\n(Cycle)
+}
+
+TUILifecycle -[hidden]down-> EditorModes
+
+@enduml

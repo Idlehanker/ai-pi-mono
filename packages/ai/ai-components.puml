@@ -1,0 +1,92 @@
+@startuml ai_components
+skinparam BoxPadding 10
+skinparam monochrome true
+skinparam componentStyle uml2
+
+title Component Diagram: @mariozechner/pi-ai Package
+
+package "ai-pi-mono Applications" {
+    [End-User / Agent Client] as Client
+}
+
+package "@mariozechner/pi-ai" {
+    
+    interface "Stream / Complete APIs" as PublicAPI
+    
+    component "Stream Core" as StreamCore {
+        port "stream.ts" as stream_port
+    }
+    
+    component "API Registry" as API_Registry {
+        port "api-registry.ts" as registry_port
+    }
+    
+    component "Models Directory" as ModelsRegistry {
+        port "models.ts / models.generated.ts" as models_port
+    }
+
+    package "Providers" {
+        component "Google Vertex AI Provider" as GoogleVertex
+        component "Google GenAI Provider" as GoogleGenAI
+        component "OpenAI Completions Provider" as OpenAICompletions
+        component "OpenAI Responses Provider" as OpenAIResponses
+        component "Anthropic Provider" as Anthropic
+        component "Azure OpenAI Provider" as Azure
+        component "Google Gemini CLI Provider" as GeminiCLI
+    }
+    
+    package "Utilities" {
+        component "Event Stream Utilities\n(EventStream)" as Util_EventStream
+        component "JSON / Streaming Parsing\n(json-parse.ts)" as Util_JSON
+        component "Validation / TypeBox\n(typebox-helpers.ts)" as Util_Validation
+        component "OAuth Credentials" as Util_OAuth
+    }
+
+}
+
+cloud "External AI APIs" {
+    [Google Cloud Vertex AI] as ExtVertex
+    [Google Generative AI] as ExtGoogle
+    [OpenAI / API] as ExtOpenAI
+    [Anthropic API] as ExtAnthropic
+    [Azure Services] as ExtAzure
+}
+
+' External App Usage
+Client ..> PublicAPI : "streamSimple() / completeSimple()"
+Client ..> models_port : "getModel()"
+
+' Internal Dependencies
+PublicAPI -- stream_port
+stream_port --> registry_port : "getApiProvider(model.api)"
+ModelsRegistry --> Util_Validation
+
+registry_port --> GoogleVertex : "maps to"
+registry_port --> GoogleGenAI : "maps to"
+registry_port --> OpenAICompletions : "maps to"
+registry_port --> OpenAIResponses : "maps to"
+registry_port --> Anthropic : "maps to"
+registry_port --> Azure : "maps to"
+registry_port --> GeminiCLI : "maps to"
+
+GoogleGenAI ..> Util_EventStream : Creates EventStream
+OpenAICompletions ..> Util_EventStream : Creates EventStream
+OpenAIResponses ..> Util_EventStream : Creates EventStream
+Anthropic ..> Util_EventStream : Creates EventStream
+Azure ..> Util_EventStream : Creates EventStream
+
+GoogleGenAI ..> Util_Validation : Formats/Validates Context
+OpenAICompletions ..> Util_Validation
+Anthropic ..> Util_Validation
+
+GoogleVertex ..> Util_OAuth : Uses auth layer
+
+' External Internet Calls
+GoogleGenAI ..down.> ExtGoogle : HTTP / SDK
+GoogleVertex ..down.> ExtVertex : HTTP / SDK
+OpenAICompletions ..down.> ExtOpenAI : HTTP
+OpenAIResponses ..down.> ExtOpenAI : HTTP
+Anthropic ..down.> ExtAnthropic : HTTP / SDK
+Azure ..down.> ExtAzure : HTTP
+
+@enduml

@@ -1,0 +1,122 @@
+@startuml agent_sequence
+skinparam BoxPadding 10
+skinparam monochrome true
+
+actor Client
+participant "Agent\n(agent.ts)" as Agent
+participant "agentLoop\n(agent-loop.ts)" as Loop
+participant "streamAssistantResponse" as StreamAssist
+participant "executeToolCalls" as ExecTools
+participant "Tool (AgentTool)" as Tool
+participant "LLM Provider\n(streamSimple)" as LLM
+
+Client -> Agent : new Agent(options)
+Client -> Agent : prompt("Hello") / prompt(messages)
+activate Agent
+
+Agent -> Agent : Set state (isStreaming = true)
+Agent -> Agent : Create AbortController
+
+Agent -> Loop : agentLoop(messages, context, config, signal)
+activate Loop
+
+Loop --> Agent : EventStream<AgentEvent>
+Agent -> Agent : Listen to EventStream (for await)
+Agent -> Client : emit("agent_start")
+Agent -> Client : emit("turn_start")
+
+Loop -> Loop : runLoop(currentContext, newMessages, config)
+activate Loop
+
+loop until no tool calls and no follow-up messages
+    alt pending steering messages exist
+        Loop -> Loop : Add steering messages to context
+        Loop --> Agent : emit("message_start", steeringMessage)
+    end
+
+    Loop -> StreamAssist : streamAssistantResponse(context, config)
+    activate StreamAssist
+
+    StreamAssist -> StreamAssist : config.transformContext(messages)
+    StreamAssist -> StreamAssist : config.convertToLlm(messages)
+    
+    StreamAssist -> LLM : streamSimple(model, llmContext)
+    activate LLM
+
+    loop for each LLM event chunk
+        LLM --> StreamAssist : yield LLMEvent
+        StreamAssist --> Agent : emit("message_start", "message_update")
+        Agent -> Client : emit(...) to listeners
+    end
+
+    LLM --> StreamAssist : final AssistantMessage
+    deactivate LLM
+
+    StreamAssist --> Agent : emit("message_end")
+    StreamAssist --> Loop : returns AssistantMessage
+    deactivate StreamAssist
+
+    Loop -> Loop : Check for tool calls
+    alt AssistantMessage contains tool calls
+        Loop -> ExecTools : executeToolCalls(tools, message, signal)
+        activate ExecTools
+
+        loop for each tool call
+            ExecTools --> Agent : emit("tool_execution_start")
+            Agent -> Client : emit("tool_execution_start")
+            
+            ExecTools -> Tool : tool.execute(params, signal, onUpdate)
+            activate Tool
+            
+            loop during tool execution
+                Tool --> ExecTools : onUpdate(partialResult)
+                ExecTools --> Agent : emit("tool_execution_update")
+                Agent -> Client : emit("tool_execution_update")
+            end
+            
+            Tool --> ExecTools : returns AgentToolResult
+            deactivate Tool
+            
+            ExecTools --> Agent : emit("tool_execution_end")
+            Agent -> Client : emit("tool_execution_end")
+
+            alt getSteeringMessages() returns messages
+                ExecTools -> ExecTools : Set steering messages
+                ExecTools -> ExecTools : Skip remaining tool calls
+                break User interrupted
+                end
+            end
+        end
+
+        ExecTools --> Loop : { toolResults, steeringMessages }
+        deactivate ExecTools
+
+        Loop --> Agent : emit("message_start/end", ToolResultMessage)
+        Loop --> Agent : emit("turn_end", toolResults)
+        Agent -> Client : emit("turn_end")
+        
+    else no tool calls
+        Loop --> Agent : emit("turn_end", empty toolResults)
+        Agent -> Client : emit("turn_end")
+        
+        Loop -> Loop : config.getFollowUpMessages()
+        alt has follow-up messages
+            Loop -> Loop : Set as pending messages
+        else no follow-up messages
+             break inner loop finishes
+             end
+        end
+    end
+end
+deactivate Loop
+
+Loop --> Agent : emit("agent_end")
+deactivate Loop
+
+Agent -> Agent : cleanup state, isStreaming = false
+Agent -> Client : emit("agent_end")
+
+Agent --> Client : Promise resolves
+deactivate Agent
+
+@enduml

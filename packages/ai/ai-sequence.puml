@@ -1,0 +1,69 @@
+@startuml ai_sequence
+skinparam BoxPadding 10
+skinparam monochrome true
+
+actor Client
+participant "streamSimple\n(stream.ts)" as Stream
+participant "api-registry\n(api-registry.ts)" as Registry
+participant "Provider Plugin\n(e.g., google.ts)" as Provider
+participant "SDK / HTTP Client\n(e.g., GoogleGenAI)" as SDK
+
+== Initialization ==
+autonumber
+Client -> Registry : import providers (e.g., register-builtins.ts)
+Registry -> Registry : registerApiProvider(provider)
+note right of Registry: Maps api string (e.g., "google-generative-ai")\n to Provider implementation
+
+== Streaming Request ==
+Client -> Stream: streamSimple(model, context, options)
+activate Stream
+
+Stream -> Registry : getApiProvider(model.api)
+activate Registry
+Registry --> Stream : returns Provider implementations
+deactivate Registry
+
+Stream -> Provider : provider.streamSimple(model, context, options)
+activate Provider
+
+Provider -> Provider : format messages, handle tool choice, extract options
+Provider -> SDK : create SDK client (e.g., new GoogleGenAI)
+Provider -> SDK : connect and send streaming request
+activate SDK
+
+Provider --> Stream : EventStream<AssistantMessageEvent>
+Stream --> Client : EventStream<AssistantMessageEvent>
+deactivate Provider
+deactivate Stream
+
+== Streaming Events Loop ==
+activate Client
+loop async iteration over EventStream
+    SDK --> Provider : yield raw chunks (text, tools, stop reason)
+    activate Provider
+    
+    note over Provider : Parse and map raw chunk\nto AssistantMessageEvent format
+    Provider -> Client : emit event ("text_delta", "toolcall_delta", etc.)
+    
+    deactivate Provider
+end
+
+SDK --> Provider : final chunk / close connection
+deactivate SDK
+activate Provider
+Provider -> Provider: aggregate final AssistantMessage
+Provider -> Client: emit event ("done" with final message)
+Provider -> Client: EventStream ends
+deactivate Provider
+deactivate Client
+
+== Completion Request ==
+Client -> Stream: completeSimple(model, context, options)
+activate Stream
+Stream -> Stream: streamSimple(...) 
+Stream -> Stream: await stream.result()
+note right of Stream: Collects all streamed events\nand waits for "done"
+Stream --> Client: AssistantMessage
+deactivate Stream
+
+@enduml

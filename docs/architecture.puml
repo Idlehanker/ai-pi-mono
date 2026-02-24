@@ -1,0 +1,65 @@
+@startuml PI_Monorepo_Architecture
+skinparam DefaultFontName Arial
+skinparam DefaultFontSize 16
+skinparam dpi 200
+skinparam componentStyle uml2
+
+skinparam component {
+    BackgroundColor<<Core>> LightGreen
+    BorderColor<<Core>> DarkGreen
+}
+
+title pi-mono Repository Architecture
+
+package "@mariozechner/pi-monorepo" {
+    
+    component "ai\n(@mariozechner/pi-ai)" <<Core>> as ai {
+        component "Providers Interface"
+        component "API Registry"
+        component "Models & Streams"
+    }
+
+    component "tui\n(@mariozechner/pi-tui)" <<Core>> as tui {
+        component "Render Engine"
+        component "Terminal API"
+        component "UI Components"
+    }
+    
+    component "agent\n(@mariozechner/pi-agent-core)" <<Core>> as agent {
+        component "Agent Loop"
+        component "LLM Proxy"
+    }
+
+    component "coding-agent\n(@mariozechner/pi-coding-agent)" as coding_agent {
+        component "CLI & Config"
+        component "Modes & Migrations"
+        component "Core Logic"
+    }
+    
+    component "web-ui\n(@mariozechner/pi-web-ui)" as web_ui {
+        component "Chat Panel"
+        component "Browser Tools"
+        component "Dialogs"
+    }
+
+    component "mom\n(@mariozechner/pi-mom)" as mom
+    component "pods\n(@mariozechner/pi)" as pods
+    
+    ' Dependencies
+    agent ..> ai : depends on
+    
+    web_ui ..> ai : depends on
+    web_ui ..> tui : depends on
+    
+    coding_agent ..> agent : depends on
+    coding_agent ..> ai : depends on
+    coding_agent ..> tui : depends on
+    
+    mom ..> agent : depends on
+    mom ..> ai : depends on
+    mom ..> coding_agent : depends on
+    
+    pods ..> agent : depends on
+}
+
+@enduml

@@ -1,0 +1,78 @@
+@startuml ai_objects
+skinparam BoxPadding 10
+skinparam monochrome true
+skinparam objectBackgroundColor White
+skinparam objectBorderColor Black
+
+title Object Diagram: Example AI Conversation Snapshot
+
+object "context : Context" as c {
+  systemPrompt = "You are a helpful coding assistant."
+}
+
+object "userMsg : UserMessage" as um {
+  role = "user"
+  timestamp = 1738450000000
+}
+
+object "textContent1 : TextContent" as tc1 {
+  type = "text"
+  text = "Can you check the current weather in Paris?"
+}
+
+object "assistantMsg : AssistantMessage" as am {
+  role = "assistant"
+  api = "google-generative-ai"
+  provider = "google"
+  model = "gemini-2.5-flash"
+  stopReason = "toolUse"
+  timestamp = 1738450005000
+}
+
+object "textContent2 : TextContent" as tc2 {
+  type = "text"
+  text = "I'll fetch the weather for Paris right away."
+}
+
+object "toolCall : ToolCall" as tcl {
+  type = "toolCall"
+  id = "call_xyz123"
+  name = "get_weather"
+  arguments = { "location": "Paris, France" }
+}
+
+object "weatherTool : Tool" as tool1 {
+  name = "get_weather"
+  description = "Get the current weather for a location."
+  parameters = { /* JSON Schema */ }
+}
+
+object "usage : Usage" as u {
+  input = 24
+  output = 36
+  cacheRead = 0
+  cacheWrite = 0
+  totalTokens = 60
+}
+
+object "usageCost : Cost" as cost {
+  input = 0.000004
+  output = 0.000018
+  cacheRead = 0
+  cacheWrite = 0
+  total = 0.000022
+}
+
+c *-- um : messages[0]
+c *-- am : messages[1]
+c *-- tool1 : tools[0]
+
+um *-- tc1 : content[0]
+
+am *-- tc2 : content[0]
+am *-- tcl : content[1]
+am o-- u : usage
+
+u o-- cost : cost
+
+@enduml

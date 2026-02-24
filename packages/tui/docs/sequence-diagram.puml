@@ -1,0 +1,60 @@
+@startuml TUI_Sequence_Diagram
+skinparam DefaultFontName Arial
+skinparam DefaultFontSize 12
+skinparam dpi 200
+
+title TUI Framework Sequence Diagram (Input & Rendering Loop)
+
+actor User
+participant "App" as App
+participant "TUI" as TUI
+participant "Component\n(e.g., Editor)" as Component
+participant "Terminal" as Terminal
+
+== Initialization ==
+App -> Terminal ** : <<create>>
+App -> TUI ** : <<create>>(Terminal)
+App -> Component ** : <<create>>
+App -> TUI : addChild(Component)
+App -> TUI : start()
+activate TUI
+TUI -> Terminal : start(onInput, onResize)
+activate Terminal
+
+== Input Processing ==
+User -> Terminal : Presses Key (e.g., "A")
+Terminal -> TUI : onInput("A")
+
+TUI -> Component : handleInput("A")
+activate Component
+Component -> Component : Update internal state
+Component -> TUI : invalidate()
+note right: Caches cleared;\nready for re-render
+deactivate Component
+
+TUI -> TUI : requestRender()
+
+== Rendering Cycle (Differential Update) ==
+note over TUI, Terminal: Synchronized output prevents screen flicker
+TUI -> Terminal : write("\\x1b[?2026h") (Start Sync)
+TUI -> Terminal : hideCursor()
+
+TUI -> Component : render(width)
+activate Component
+Component --> TUI : string[] (rendered lines)
+deactivate Component
+
+TUI -> TUI : Compute diff against previous frame
+TUI -> Terminal : write(ANSI diff cursor movements & clear lines)
+TUI -> Terminal : write(changed lines text)
+
+TUI -> Terminal : write("\\x1b[?2026l") (End Sync / Flush to screen)
+TUI -> Terminal : positionHardwareCursor()
+
+== Shutdown ==
+App -> TUI : stop()
+TUI -> Terminal : stop()
+deactivate Terminal
+deactivate TUI
+
+@enduml
