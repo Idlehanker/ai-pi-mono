@@ -5,7 +5,28 @@
       "path": ".",
     },
     {
-      "path": "../../moms",
+      "name": "@mariozechner/pi-agent-core",
+      "path": "packages/agent",
+    },
+    {
+      "name": "@mariozechner/pi-ai",
+      "path": "packages/ai",
+    },
+    {
+      "name": "@mariozechner/pi-coding-agent",
+      "path": "packages/coding-agent",
+    },
+    {
+      "name": "@mariozechner/pi-momo",
+      "path": "packages/momo",
+    },
+    {
+      "name": "@mariozechner/pi-tui",
+      "path": "packages/tui",
+    },
+    {
+      "name": "@mariozechner/pi-web-ui",
+      "path": "packages/web-ui",
     },
   ],
   "settings": {
